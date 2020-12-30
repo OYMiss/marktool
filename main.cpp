@@ -88,7 +88,6 @@ std::string dfs(Node *root) {
 int main () {
     std::string s;
     std::ifstream fin("test.md");
-    // std::ifstream fin("t.md");
     Praser praser;
     std::string html;
     while (getline(fin, s)) {
