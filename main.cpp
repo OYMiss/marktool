@@ -83,9 +83,10 @@ std::string dfs(Node *root) {
     return pre + content + post;
 }
 
-int main () {
+int main (int argc, char const *argv[]) {
     std::string s;
-    std::ifstream fin("test.md");
+    std::ifstream fin(argv[1]);
+    // std::ifstream fin("test.md");
     Node* root = new Node();
     Praser praser(root);
     std::string html;
