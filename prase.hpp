@@ -149,10 +149,10 @@ private:
 
     // function for paragraph check
     bool check_italic_and_move(const std::string &content, unsigned &i, unsigned &j, unsigned &nexti) {
-        if (content[i] == '*') {
-            i = i + 1;
+        if (content[i] == '*' or content[i] == '_') {
             j = i + 1;
-            while (j < content.length() and content[j] != '*') j++;
+            while (j < content.length() and content[j] != content[i]) j++;
+            i = i + 1;
             nexti = j + 1;
             j = j - i;
             return true;
