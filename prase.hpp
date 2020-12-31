@@ -11,6 +11,7 @@
 enum NodeType {
     text,
     code,
+    inlinemath,
     math,
     ul,
     ol,
@@ -90,7 +91,7 @@ private:
     }
 
     bool is_math_begin(const std::string &content) {
-        return content.substr(0, 3) == "$$$";
+        return content.substr(0, 2) == "$$";
     }
 
     bool is_code_end(const std::string &content) {
@@ -98,7 +99,7 @@ private:
     }
 
     bool is_math_end(const std::string &content) {
-        return content.substr(0, 3) == "$$$";
+        return content.substr(0, 2) == "$$";
     }
 
     // function for line check
@@ -177,6 +178,18 @@ private:
             i = i + 1;
             j = i + 1;
             while (j < content.length() and content[j] != '`') j++;
+            nexti = j + 1;
+            j = j - i;
+            return true;
+        }
+        return false;
+    }
+
+    bool check_inlinemath_and_move(const std::string &content, unsigned &i, unsigned &j, unsigned &nexti) {
+        if (content[i] == '$') {
+            i = i + 1;
+            j = i + 1;
+            while (j < content.length() and content[j] != '$') j++;
             nexti = j + 1;
             j = j - i;
             return true;
@@ -273,6 +286,10 @@ private:
                 clear_text_buff(buffer, p);
                 p->contents.push_back(new Node(content.substr(i, j), span));
                 i = nexti;
+            } else if (check_inlinemath_and_move(content, i, j, nexti)) {
+                clear_text_buff(buffer, p);
+                p->contents.push_back(new Node(content.substr(i, j), inlinemath));
+                i = nexti;
             } else if (check_link_and_move(content, i, j, k, l, nexti)) {
                 clear_text_buff(buffer, p);
                 Node *plink = new Node();
@@ -345,7 +362,7 @@ public:
                 status = mathstatus;
                 cross_line_p = new Node();
                 cross_line_p->type = math;
-                cross_line_p->contents.push_back(new Node(content.substr(3, content.length() - 3), marker));
+                cross_line_p->contents.push_back(new Node(content.substr(2, content.length() - 2), marker));
             } else if (is_unordered_list_begin(content)) {
                 status = uliststatus;
                 cross_line_p = new Node();

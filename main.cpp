@@ -66,9 +66,13 @@ void generate_tag(Node *root, std::string &pre, std::string &post) {
         pre = "<hr />";
         post = "";
         break;
+    case inlinemath:
+        pre = "\\(";
+        post = "\\)";
+        break;
     case math:
-        pre = "<code>";
-        post = "</code>";
+        pre = "\\[";
+        post = "\\]";
         break;
     }
 }
@@ -99,7 +103,9 @@ int main (int argc, char const *argv[]) {
         <meta charset=\"utf-8\">\
         <title>标题</title>\
         <link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/4.0.0/github-markdown.min.css\">\
-        </head><body><article class=\"markdown-body\">";
+        </head><body><article class=\"markdown-body\">\
+        <script src=\"https://polyfill.io/v3/polyfill.min.js?features=es6\"></script>\
+        <script id=\"MathJax-script\" async src=\"https://cdn.jsdelivr.net/npm/mathjax@3.0.1/es5/tex-mml-chtml.js\"></script>";
     std::string end = "</article></body></html>";
  
     // 将结果写入到文件
