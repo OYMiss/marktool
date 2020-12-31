@@ -9,21 +9,22 @@
 #include <iostream>
 
 enum NodeType {
-    heading,
+    text,
+    code,
+    math,
+    ul,
+    ol,
     paragraph,
+    heading,
     quote,
     strong,
     italic,
     span,
-    marker,
-    code,
-    text,
     list,
-    ul,
-    ol,
     link,
     image,
-    hr
+    hr,
+    marker,
 };
 
 class Node {
@@ -40,108 +41,178 @@ public:
 
 };
 
-
-class Context {
-private:
-    unsigned status;
+enum Status {
+    textstatus,
+    codestatus,
+    mathstatus,
+    uliststatus,
+    oliststatus,
 };
 
 class Praser {
 private:
-    Context status;
-    bool is_code_block = false;
-    bool is_list_block = false;
+    Status status = textstatus;
     Node *cross_line_p = nullptr;
-public:
-    Node* solve_line(Node *p, const std::string &content, unsigned i=0) {
-        while(content[i] == ' ') i++;
-        std::stack<std::pair<unsigned, NodeType>> op;
-        NodeType cur_type;
-        while (i < content.size()) {
-            switch (content[i]) {
-            case '*': 
-            case '_': 
-                if (content[i + 1] == '*' or content[i + 1] == '_') {
-                    i++;
-                    cur_type = NodeType::strong;
-                } else {
-                    cur_type = NodeType::italic;
-                }
-                if (op.empty() or op.top().second != cur_type) {
-                    if (not op.empty() and op.top().second == text) {
-                        Node *text_child = new Node(content.substr(op.top().first, i - op.top().first - (cur_type == strong)), text);
-                        p->contents.push_back(text_child);
-                        op.pop();
-                    }
-                    // todo: check content[i+1] != '*'
-                    op.emplace(std::make_pair(i + 1, cur_type));
-                } else {
-                    unsigned pre_i = op.top().first;
-                    op.pop();
-                    Node *new_child = new Node(content.substr(pre_i, i - pre_i - (cur_type == strong)), cur_type);
-                    p->contents.push_back(new_child);
-                }
-                break;
-            case '`': 
-                cur_type = span;
-                if (op.empty() or op.top().second != cur_type) {
-                    if (not op.empty() and op.top().second == text) {
-                        Node *text_child = new Node(content.substr(op.top().first, i - op.top().first - (cur_type == strong)), text);
-                        p->contents.push_back(text_child);
-                        op.pop();
-                    }
-                    // todo: check content[i+1] != '*'
-                    op.emplace(std::make_pair(i + 1, cur_type));
-                } else {
-                    unsigned pre_i = op.top().first;
-                    op.pop();
-                    Node *new_child = new Node(content.substr(pre_i, i - pre_i), cur_type);
-                    p->contents.push_back(new_child);
-                }
-                break;
-            case '[': 
-                if (is_link(content, i)) {
-                    if (not op.empty() and op.top().second == text) {
-                        Node *text_child = new Node(content.substr(op.top().first, i - op.top().first - (cur_type == strong)), text);
-                        p->contents.push_back(text_child);
-                        op.pop();
-                    }
-                    auto l = solve_link(content, i);
-                    p->contents.push_back(l);
-                }
-                goto text_process;
-            case '!': 
-                if (is_image(content, i)) {
-                    if (not op.empty() and op.top().second == text) {
-                        Node *text_child = new Node(content.substr(op.top().first, i - op.top().first - (cur_type == strong)), text);
-                        p->contents.push_back(text_child);
-                        op.pop();
-                    }
-                    auto l = solve_image(content, i);
-                    p->contents.push_back(l);
-                }
-                goto text_process;
-            default: 
-  text_process: cur_type = text;
-                if (op.empty()) {
-                    // todo: check content[i+1] != '*'
-                    op.emplace(std::make_pair(i, cur_type));
-                }
-                break;
-            }
-            i++;
+    Node *root;
+
+    // function for block check
+    bool is_ordered_list_begin(const std::string &content) {
+        unsigned cnt = 0;
+        while (isdigit(content[cnt])) cnt++;
+        if (cnt != 0 and 
+            cnt + 1 < content.length() and 
+            content[cnt + 1] == ' ' and 
+            (content[cnt] == '.' or content[cnt] == ')')) {
+                return true;
         }
-        if (not op.empty() and op.top().second == text) {
-            Node *text_child = new Node(content.substr(op.top().first, i - op.top().first - (cur_type == strong)), text);
-            p->contents.push_back(text_child);
-        }
-        return nullptr;
+        return false;
     }
 
-    bool is_link(const std::string &content, unsigned i) {
+    bool is_unordered_list_begin(const std::string &content) {
+        return 0 + 1 < content.length() and 
+        content.substr(0, 2) == "* " or 
+        content.substr(0, 2) == "- " or
+        content.substr(0, 2) == "+ ";
+    }
+
+    bool is_blankline_end(const std::string &content) {
+        int i = 0;
+        while (i < content.length() and content[i] == ' ' or content[i] == '\t') i++;
+        return content[i] == '\0';
+    }
+
+    bool is_list_end(const std::string &content) {
+        return is_blankline_end(content);
+    }
+
+    bool is_code_begin(const std::string &content) {
+        return content.substr(0, 3) == "```";
+    }
+
+    bool is_math_begin(const std::string &content) {
+        return content.substr(0, 3) == "$$$";
+    }
+
+    bool is_code_end(const std::string &content) {
+        return content.substr(0, 3) == "```";
+    }
+
+    bool is_math_end(const std::string &content) {
+        return content.substr(0, 3) == "$$$";
+    }
+
+    // function for line check
+    bool check_heading_and_move(const std::string &content, unsigned &i) {
+        if (content[i] == '#') {
+            while (i < content.length() and content[i] == '#') i++;
+            while (i < content.length() and content[i] == ' ') i++;
+            return true;
+        }
+        return false;
+    }
+
+    bool check_quote_and_move(const std::string &content, unsigned &i) {
+        if (content[i] == '>') {
+            if (i < content.length() and content[i] == '>') i++;
+            while (i < content.length() and content[i] == ' ') i++;
+            return true;
+        }
+        return false;
+    }
+
+    bool check_ulist_and_move(const std::string &content, unsigned &i) {
+        if (is_unordered_list_begin(content)) {
+            i += 2;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool check_olist_and_move(const std::string &content, unsigned &i) {
+        if (is_ordered_list_begin(content)) {
+            while (i < content.length() and isdigit(content[i])) i++;
+            i += 2;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool check_hr_and_move(const std::string &content, unsigned &i) {
+        if (content.substr(i, 3) == "---") {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    // function for paragraph check
+    bool check_italic_and_move(const std::string &content, unsigned &i, unsigned &j, unsigned &nexti) {
+        if (content[i] == '*') {
+            i = i + 1;
+            j = i + 1;
+            while (j < content.length() and content[j] != '*') j++;
+            nexti = j + 1;
+            j = j - i;
+            return true;
+        }
+        return false;
+    }
+
+    bool check_strong_and_move(const std::string &content, unsigned &i, unsigned &j, unsigned &nexti) {
+        if (i + 1 < content.length() and content[i] == '*' and content[i + 1] == '*') {
+            i = i + 2;
+            j = i + 2;
+            while (j < content.length() and content[j] != '*') j++;
+            nexti = j + 2;
+            j = j - i;
+            return true;
+        }
+        return false;
+    }
+
+    bool check_span_and_move(const std::string &content, unsigned &i, unsigned &j, unsigned &nexti) {
+        if (content[i] == '`') {
+            i = i + 1;
+            j = i + 1;
+            while (j < content.length() and content[j] != '`') j++;
+            nexti = j + 1;
+            j = j - i;
+            return true;
+        }
+        return false;
+    }
+
+    bool check_image_and_move(const std::string &content, unsigned &i, unsigned &j, unsigned &k, unsigned &l, unsigned &nexti) {
+        if (content[i] == '!') {
+            unsigned ii = i + 1;
+            if (check_link_and_move(content, ii, j, k, l, nexti)) {
+                i = ii;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool check_link_and_move(const std::string &content, unsigned &i, unsigned &j, unsigned &k, unsigned &l, unsigned &nexti) {
         if (content[i] == '[') {
-            for (unsigned j = i + 1; j < content.length(); j++) {
+            bool ok = false;
+            for (j = i + 1; j < content.length() - 1; j++) {
                 if (content.substr(j, 2) == "](") {
+                    ok = true;
+                    break;
+                }
+            }
+
+            if (not ok) return false;
+            k = j + 2;
+            for (l = k; l < content.length(); l++) {
+                if (content[l] == ')') {
+                    nexti = l + 1;
+                    i++;
+                    j = j - i;
+                    l = l - k;
                     return true;
                 }
             }
@@ -149,200 +220,147 @@ public:
         return false;
     }
 
-    bool is_image(const std::string &content, unsigned i) {
-        return content[i] == '!' and is_link(content, i + 1);
+    void clear_text_buff(std::string &buffer, Node *p) {
+        if (not buffer.empty()) {
+            p->contents.push_back(new Node(buffer, text));
+            buffer.clear();
+        }
     }
 
-    Node* solve_link(const std::string &content, unsigned &i) {
-        Node *p = new Node();
-        p->type = link;
-        i = i + 1;
-        unsigned j = i;
-        bool ok = false;
-        while (j < content.length()) {
-            if (content.substr(j, 2) == "](") {
-                // [as]()
-                p->contents.push_back(new Node(content.substr(i, j - i), text));
-                ok = true;
-                break;
-            }
-            j++;
-        }
-        if (not ok) return nullptr;
-        ok = false;
-        j = j + 2;
-        i = j;
-        while (j < content.length()) {
-            if (content[j] == ')') {
-                p->contents.push_back(new Node(content.substr(i, j - i), marker));
-                ok = true;
-                break;
-            }
-            j++;
-        }
-        i = j + 1;
-        if (not ok) return nullptr;
-        return p;
-    }
-
-    Node* solve_image(const std::string &content, unsigned &i) {
-        Node *p = new Node();
-        p->type = image;
-        i = i + 2;
-        unsigned j = i;
-        bool ok = false;
-        while (j < content.length()) {
-            if (content.substr(j, 2) == "](") {
-                p->contents.push_back(new Node(content.substr(i, j - i), marker));
-                ok = true;
-                break;
-            }
-            j++;
-        }
-        if (not ok) return nullptr;
-        ok = false;
-        j = j + 2;
-        i = j;
-        while (j < content.length()) {
-            if (content[j] == ')') {
-                p->contents.push_back(new Node(content.substr(i, j - i), marker));
-                ok = true;
-                break;
-            }
-            j++;
-        }
-        i = j + 1;
-        if (not ok) return nullptr;
-        return p;
-    }
-
-
-    bool is_ordered_list(const std::string &content, unsigned i) {
-        unsigned cnt = 0;
-        while (isdigit(content[i + cnt])) cnt++;
-        if (cnt != 0 and 
-            i + cnt + 1 < content.length() and 
-            content[i + cnt + 1] == ' ' and 
-            (content[i + cnt] == '.' or content[i + cnt] == ')')) {
-                return true;
-        }
-        return false;
-    }
-
-    bool is_unordered_list(const std::string &content, unsigned i) {
-        return i + 1 < content.length() and 
-        content.substr(i, 2) == "* " or 
-        content.substr(i, 2) == "- " or
-        content.substr(i, 2) == "+ ";
-    }
-    
-    Node* prase(const std::string &content, unsigned i=0) {
-        while(content[i] == ' ') i++;
-        if (is_list_block) {
-            if (not is_ordered_list(content, i) and not is_unordered_list(content, i)) {
-                auto t = cross_line_p;
-                is_list_block = false;
-                cross_line_p = nullptr;
-                return t;
-            }
-        }
-        Node *p = (is_code_block or is_list_block) ? cross_line_p : new Node();
-
-        // codeblock
-        if (content.substr(i, 3) == "$$$" or content.substr(i, 3) == "```") {
-            is_code_block = !is_code_block;
-            if (is_code_block) {
-                p->type = code;
-                p->contents.push_back(new Node(content.substr(i + 3, content.length() - 3), NodeType::marker));
-                cross_line_p = p;
-                return nullptr;
-            } else {
-                cross_line_p = nullptr;
-                return p;
-            }
-        } else if (is_code_block) {
-            p->contents.push_back(new Node(content + "\n", NodeType::text));
-            return nullptr;
-        }
-
-        if (content.substr(i, 3) == "---") {
-            Node *p = new Node();
-            p->type = hr;
-            return p;
-        }
-
-        if (content[i] == '\0') {
-            return nullptr;
-        }
-
-        // listblock
-        if (is_unordered_list(content, i)) {
-            if (not is_list_block) {
-                is_list_block = true;
-                p->type = ul;
-                cross_line_p = p;
-            }
-        } else if (is_ordered_list(content, i)) {
-            if (not is_list_block) {
-                is_list_block = true;
-                p->type = ol;
-                cross_line_p = p;
-            }
-        }
-
-        unsigned j = i, cnt;
-        // split
-        switch (content[i]) {
-        case '#': 
-            while (content[j] == '#') j++;
+    Node* prase_line(const std::string &content) {
+        unsigned i = 0;
+        Node *p = nullptr;
+        if (check_heading_and_move(content, i)) {
+            p = new Node();
             p->type = heading;
-            p->contents.push_back(new Node(content.substr(i, j - i), NodeType::marker));
-            solve_line(p, content, j);
-            break;
-        case '>': 
-            while (content[j] == '>') j++;
+            p->contents.push_back(new Node(content.substr(0, i - 1), NodeType::marker));
+            p->contents.push_back(prase_paragraph(content, i, false));
+        } else if (check_quote_and_move(content, i)) {
+            p = new Node();
             p->type = quote;
-            p->contents.push_back(new Node(content.substr(i, j - i), NodeType::marker));
-            solve_line(p, content, j);
-            break;
-        case '*':
-        case '-':
-        case '+':
-            if (content[j + 1] == ' ') {
-                j++;
-                // p->contents.push_back(new Node(content.substr(i, j - i), NodeType::marker));
-                Node *plist = new Node();
-                plist->type = list;
-                solve_line(plist, content, j);
-                p->contents.push_back(plist);
-                return nullptr;
-            }
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9':
-        case '0':
-            cnt = 0;
-            while (isdigit(content[i + cnt])) cnt++;
-            if ((content[i + cnt] == ')' or content[i + cnt] == '.') and content[i + cnt + 1] == ' ') {
-                j = i + cnt + 1;
-                Node *plist = new Node();
-                plist->type = list;
-                solve_line(plist, content, j);
-                p->contents.push_back(plist);
-                return nullptr;
-            }
-        default:
-            p->type = paragraph;
-            solve_line(p, content, j);
-            break;
+            p->contents.push_back(new Node(content.substr(0, i - 1), NodeType::marker));
+            p->contents.push_back(prase_paragraph(content, i, false));
+        } else if (check_ulist_and_move(content, i) or check_olist_and_move(content, i)) {
+            p = new Node();
+            p->type = list;
+            p->contents.push_back(prase_paragraph(content, i, false));
+        } else if (check_hr_and_move(content, i)) {
+            p = new Node();
+            p->type = hr;
+        } else {
+            p = prase_paragraph(content, i);
         }
         return p;
+    }
+
+    Node* prase_paragraph(const std::string &content, unsigned i, bool is_paragraph=true) {
+        while (i < content.length() and content[i] == ' ') i++;
+        if (content[i] == '\0') return nullptr;
+        Node *p = new Node();
+        p->type = is_paragraph ? paragraph : text;
+        std::string buffer;
+        unsigned j, k, l, nexti;
+        while (i < content.length()) {
+            if (check_strong_and_move(content, i, j, nexti)) {
+                clear_text_buff(buffer, p);
+                p->contents.push_back(new Node(content.substr(i, j), strong));
+                i = nexti;
+            } else if (check_italic_and_move(content, i, j, nexti)) {
+                clear_text_buff(buffer, p);
+                p->contents.push_back(new Node(content.substr(i, j), italic));
+                i = nexti;
+            } else if (check_span_and_move(content, i, j, nexti)) {
+                clear_text_buff(buffer, p);
+                p->contents.push_back(new Node(content.substr(i, j), span));
+                i = nexti;
+            } else if (check_link_and_move(content, i, j, k, l, nexti)) {
+                clear_text_buff(buffer, p);
+                Node *plink = new Node();
+                plink->type = link;
+                plink->contents.push_back(new Node(content.substr(i, j), text));
+                plink->contents.push_back(new Node(content.substr(k, l), marker));
+                p->contents.push_back(plink);
+                i = nexti;
+            } else if (check_image_and_move(content, i, j, k, l, nexti)) {
+                clear_text_buff(buffer, p);
+                Node *pimg = new Node();
+                pimg->type = image;
+                pimg->contents.push_back(new Node(content.substr(i, j), marker));
+                pimg->contents.push_back(new Node(content.substr(k, l), marker));
+                p->contents.push_back(pimg);
+                i = nexti;
+            } else {
+                buffer.push_back(content[i]);
+                i++;
+            }
+        }
+        clear_text_buff(buffer, p);
+        return p;
+    }
+
+public:
+    Praser(Node *root) : root(root) {
+    }
+
+    void prase_block(const std::string &content) {
+        // check end
+        switch (status) {
+        case codestatus:
+            if (is_code_end(content)) {
+                status = textstatus;
+                root->contents.push_back(cross_line_p);
+                cross_line_p = nullptr;
+            } else {
+                cross_line_p->contents.push_back(new Node(content + "\n", NodeType::text));
+            }
+            break;
+        case mathstatus:
+            if (is_math_end(content)) {
+                status = textstatus;
+                root->contents.push_back(cross_line_p);
+                cross_line_p = nullptr;
+            } else {
+                cross_line_p->contents.push_back(new Node(content + "\n", NodeType::text));
+            }
+            break;
+        case uliststatus:
+        case oliststatus:
+            if (is_list_end(content)) {
+                status = textstatus;
+                root->contents.push_back(cross_line_p);
+                cross_line_p = nullptr;
+            } else {
+                assert(cross_line_p != nullptr);
+                cross_line_p->contents.push_back(prase_line(content));
+            }
+            break;
+        default:
+            // check begin
+            if (is_code_begin(content)) {
+                status = codestatus;
+                cross_line_p = new Node();
+                cross_line_p->type = code;
+                cross_line_p->contents.push_back(new Node(content.substr(3, content.length() - 3), marker));
+            } else if (is_math_begin(content)) {
+                status = mathstatus;
+                cross_line_p = new Node();
+                cross_line_p->type = math;
+                cross_line_p->contents.push_back(new Node(content.substr(3, content.length() - 3), marker));
+            } else if (is_unordered_list_begin(content)) {
+                status = uliststatus;
+                cross_line_p = new Node();
+                cross_line_p->type = ul;
+                cross_line_p->contents.push_back(prase_line(content));
+            } else if (is_ordered_list_begin(content)) {
+                status = oliststatus;
+                cross_line_p = new Node();
+                cross_line_p->type = ol;
+                cross_line_p->contents.push_back(prase_line(content));
+            } else {
+                auto newnode = prase_line(content);
+                if (newnode) root->contents.push_back(newnode);
+            }
+        }
     }
 };
 

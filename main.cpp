@@ -4,18 +4,8 @@
 
 #include "prase.hpp"
 
-
-// void dfs(Node *root) {
-//     std::cout << root->type << ":" << root->raw << std::endl;
-//     for (Node *s : root->contents) {
-//         dfs(s);
-//     }
-// }
-
-std::string dfs(Node *root) {
-    // std::cout << root->type << ":" << root->raw << std::endl;
-    std::string pre, post, t;
-
+void generate_tag(Node *root, std::string &pre, std::string &post) {
+    std::string t;
     switch (root->type) {
     case heading:
         t = std::to_string(root->contents.front()->raw.size());
@@ -25,78 +15,84 @@ std::string dfs(Node *root) {
     case paragraph:
         pre = "<p>";
         post = "</p>";
-        break; 
+        break;
     case quote:
         pre = "<blockquote>";
         post = "</blockquote>";
-        break; 
+        break;
     case strong:
         pre = "<strong>";
         post = "</strong>";
-        break; 
+        break;
     case italic:
         pre = "<em>";
         post = "</em>";
-        break; 
+        break;
     case span:
         pre = "<code>";
         post = "</code>";
-        break; 
+        break;
     case marker:
         break;
     case code:
         pre = "<pre><code>";
         post = "</code></pre>";
-        break; 
+        break;
     case text:
-        break; 
+        break;
     case list:
         pre = "<li>";
         post = "</li>";
-        break; 
+        break;
     case ol:
         pre = "<ol>";
         post = "</ol>";
-        break; 
+        break;
     case ul:
         pre = "<ul>";
         post = "</ul>";
-        break; 
+        break;
     case link:
         t = root->contents.back()->raw;
         pre = "<a href=\"" + t + "\">";
         post = "</a>";
-        break; 
+        break;
     case image:
         t = root->contents.back()->raw;
         pre = "<img src=\"" + t + "\" alt=\"" + root->contents.front()->raw + "\">";
         post = "</img>";
-        break; 
+        break;
     case hr:
         pre = "<hr />";
         post = "";
-        break; 
+        break;
+    case math:
+        pre = "<code>";
+        post = "</code>";
+        break;
     }
+}
 
-    std::string res = root->type == marker ? "" : root->raw;
+std::string dfs(Node *root) {
+    std::string pre, post;
+    generate_tag(root, pre, post);
+    std::string content = root->type == marker ? "" : root->raw;
     for (Node *s : root->contents) {
-        res.append(dfs(s));
+        if (s) content.append(dfs(s));
     }
-    return pre + res + post;
+    return pre + content + post;
 }
 
 int main () {
     std::string s;
     std::ifstream fin("test.md");
-    Praser praser;
+    Node* root = new Node();
+    Praser praser(root);
     std::string html;
     while (getline(fin, s)) {
-        auto p = praser.prase(s);
-        if (p != nullptr) {
-            html.append(dfs(p));
-        }
+        praser.prase_block(s);
     }
-
+    html = dfs(root);
     // 准备要写入的 HTML 文件头尾信息
     std::string head = "<!DOCTYPE html><html><head>\
         <meta charset=\"utf-8\">\
