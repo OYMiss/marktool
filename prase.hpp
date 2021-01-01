@@ -215,6 +215,8 @@ private:
                 if (content.substr(j, 2) == "](") {
                     ok = true;
                     break;
+                } else if (content.substr(j, 2) == "] ") {
+                    return false;
                 }
             }
 
