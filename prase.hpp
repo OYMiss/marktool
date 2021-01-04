@@ -254,7 +254,7 @@ private:
             p = new Node();
             p->type = quote;
             p->contents.push_back(new Node(content.substr(0, i - 1), NodeType::marker));
-            p->contents.push_back(prase_paragraph(content, i, false));
+            p->contents.push_back(prase_paragraph(content, i, true));
         } else if (check_ulist_and_move(content, i) or check_olist_and_move(content, i)) {
             p = new Node();
             p->type = list;
