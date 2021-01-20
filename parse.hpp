@@ -50,7 +50,7 @@ enum Status {
     oliststatus,
 };
 
-class Praser {
+class Parser {
 private:
     Status status = textstatus;
     Node *cross_line_p = nullptr;
@@ -242,33 +242,33 @@ private:
         }
     }
 
-    Node* prase_line(const std::string &content) {
+    Node* parse_line(const std::string &content) {
         unsigned i = 0;
         Node *p = nullptr;
         if (check_heading_and_move(content, i)) {
             p = new Node();
             p->type = heading;
             p->contents.push_back(new Node(content.substr(0, i - 1), NodeType::marker));
-            p->contents.push_back(prase_paragraph(content, i, false));
+            p->contents.push_back(parse_paragraph(content, i, false));
         } else if (check_quote_and_move(content, i)) {
             p = new Node();
             p->type = quote;
             p->contents.push_back(new Node(content.substr(0, i - 1), NodeType::marker));
-            p->contents.push_back(prase_paragraph(content, i, true));
+            p->contents.push_back(parse_paragraph(content, i, true));
         } else if (check_ulist_and_move(content, i) or check_olist_and_move(content, i)) {
             p = new Node();
             p->type = list;
-            p->contents.push_back(prase_paragraph(content, i, false));
+            p->contents.push_back(parse_paragraph(content, i, false));
         } else if (check_hr_and_move(content, i)) {
             p = new Node();
             p->type = hr;
         } else {
-            p = prase_paragraph(content, i);
+            p = parse_paragraph(content, i);
         }
         return p;
     }
 
-    Node* prase_paragraph(const std::string &content, unsigned i, bool is_paragraph=true) {
+    Node* parse_paragraph(const std::string &content, unsigned i, bool is_paragraph=true) {
         while (i < content.length() and content[i] == ' ') i++;
         if (content[i] == '\0') return nullptr;
         Node *p = new Node();
@@ -318,10 +318,10 @@ private:
     }
 
 public:
-    Praser(Node *root) : root(root) {
+    Parser(Node *root) : root(root) {
     }
 
-    void prase_block(const std::string &content) {
+    void parse_block(const std::string &content) {
         // check end
         switch (status) {
         case codestatus:
@@ -350,7 +350,7 @@ public:
                 cross_line_p = nullptr;
             } else {
                 assert(cross_line_p != nullptr);
-                cross_line_p->contents.push_back(prase_line(content));
+                cross_line_p->contents.push_back(parse_line(content));
             }
             break;
         default:
@@ -369,14 +369,14 @@ public:
                 status = uliststatus;
                 cross_line_p = new Node();
                 cross_line_p->type = ul;
-                cross_line_p->contents.push_back(prase_line(content));
+                cross_line_p->contents.push_back(parse_line(content));
             } else if (is_ordered_list_begin(content)) {
                 status = oliststatus;
                 cross_line_p = new Node();
                 cross_line_p->type = ol;
-                cross_line_p->contents.push_back(prase_line(content));
+                cross_line_p->contents.push_back(parse_line(content));
             } else {
-                auto newnode = prase_line(content);
+                auto newnode = parse_line(content);
                 if (newnode) root->contents.push_back(newnode);
             }
         }

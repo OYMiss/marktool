@@ -3,7 +3,7 @@
 
 #include <fstream>
 #include <string>
-#include "prase.hpp"
+#include "parse.hpp"
 
 void generate_tag(Node *root, std::string &pre, std::string &post) {
     std::string t;
@@ -91,10 +91,10 @@ std::string dfs(Node *root) {
 std::string to_html(std::string filename) {
     std::ifstream fin(filename);
     Node* root = new Node();
-    Praser praser(root);
+    Praser parser(root);
     std::string html, s;
     while (getline(fin, s)) {
-        praser.prase_block(s);
+        parser.parse_block(s);
     }
     html = dfs(root);
     return html;
