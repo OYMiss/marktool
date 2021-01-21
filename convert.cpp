@@ -1,9 +1,4 @@
-#ifndef CONVERT_H
-#define CONVERT_H
-
-#include <fstream>
-#include <string>
-#include "parse.hpp"
+#include "convert.h"
 
 void generate_tag(Node *root, std::string &pre, std::string &post) {
     std::string t;
@@ -91,7 +86,7 @@ std::string dfs(Node *root) {
 std::string to_html(std::string filename) {
     std::ifstream fin(filename);
     Node* root = new Node();
-    Praser parser(root);
+    Parser parser(root);
     std::string html, s;
     while (getline(fin, s)) {
         parser.parse_block(s);
@@ -100,4 +95,13 @@ std::string to_html(std::string filename) {
     return html;
 }
 
-#endif
+std::string to_html(std::ifstream &fin) {
+    Node* root = new Node();
+    Parser parser(root);
+    std::string html, s;
+    while (getline(fin, s)) {
+        parser.parse_block(s);
+    }
+    html = dfs(root);
+    return html;
+}

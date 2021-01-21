@@ -2,7 +2,7 @@
 #include <fstream>
 #include <string>
 
-#include "convert.hpp"
+#include "convert.h"
 
 int main (int argc, char const *argv[]) {
     auto html = to_html(argv[1]);
