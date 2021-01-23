@@ -1,5 +1,5 @@
-#ifndef PRASE_H
-#define PRASE_H
+#ifndef PARSE_H
+#define PARSE_H
 
 #include <string>
 #include <stack>
@@ -70,15 +70,15 @@ private:
     }
 
     bool is_unordered_list_begin(const std::string &content) {
-        return 0 + 1 < content.length() and 
+        return 0 + 1 < content.length() and (
         content.substr(0, 2) == "* " or 
         content.substr(0, 2) == "- " or
-        content.substr(0, 2) == "+ ";
+        content.substr(0, 2) == "+ ");
     }
 
     bool is_blankline_end(const std::string &content) {
         int i = 0;
-        while (i < content.length() and content[i] == ' ' or content[i] == '\t') i++;
+        while (i < content.length() and (content[i] == ' ' or content[i] == '\t')) i++;
         return content[i] == '\0';
     }
 
